@@ -18,6 +18,17 @@ Welcome to the `Yubikey-Guide-For-Linux`. This guide illustrates the usage of th
 - [Entropy](#entropy)
   - [Yubikey](#yubikey)
   - [OneRNG](#onerng)
+- [Creating Keys](#creating-keys)
+  - [Temporary Working Directory](#temporary-working-directory)
+  - [Harden Configuration](#harden-configuration)
+  - [Preserving Working Directory](#preserving-working-directory)
+- [Master Key](#master-key)
+- [Sign With Existing Key](#sign-with-existing-key)
+- [Sub-Keys](#subs-keys)
+  - [Signing](#signing)
+  - [Encryption](#encryption)
+  - [Authentication](#authentication)
+  - [Add Extra Identities](#add-extra-identities)
 
 ## Special Note 
 
@@ -462,3 +473,515 @@ $ sudo atd
 
 $ sudo service rng-tools restart
 ```
+
+# Creating Keys
+
+## Temporary Working Directory
+
+Create a temporary directory that will be cleared on [reboot](https://en.wikipedia.org/wiki/Tmpfs) and set it as the GnuPG directory:
+
+```console
+$ export GNUPGHOME=$(mktemp -d -t gnupg_$(date +%Y%m%d%H%M)_XXX)
+```
+
+## Harden Configuration
+
+Create a hardened configuration in the temporary working directory with the following options:
+
+```console
+$ wget -O $GNUPGHOME/gpg.conf https://raw.githubusercontent.com/drduh/config/master/gpg.conf
+
+$ grep -ve "^#" $GNUPGHOME/gpg.conf
+personal-cipher-preferences AES256 AES192 AES
+personal-digest-preferences SHA512 SHA384 SHA256
+personal-compress-preferences ZLIB BZIP2 ZIP Uncompressed
+default-preference-list SHA512 SHA384 SHA256 AES256 AES192 AES ZLIB BZIP2 ZIP Uncompressed
+cert-digest-algo SHA512
+s2k-digest-algo SHA512
+s2k-cipher-algo AES256
+charset utf-8
+fixed-list-mode
+no-comments
+no-emit-version
+no-greeting
+keyid-format 0xlong
+list-options show-uid-validity
+verify-options show-uid-validity
+with-fingerprint
+require-cross-certification
+no-symkey-cache
+use-agent
+throw-keyids
+```
+
+**Tip:** Networking can be disabled for the remainder of the setup.
+
+## Preserving Working Directory 
+
+(Optional) To preserve the working environment, set the GnuPG directory to your home folder:
+
+```console
+$ export GNUPGHOME=~/gnupg-workspace
+```
+
+**Tip:** If you decide to preserve the working environment instead of a temporary one, make sure to disable the network for the remainder of the setup and to delete your footprint afterwards.
+
+# Master Key
+
+The first key to generate is the master key. It will be used for certification only: to issue sub-keys that are used for encryption, signing, and authentication.
+
+**Important:** The master key should be kept offline at all times and only accessed to revoke or issue new sub-keys. Keys can also be generated on the YubiKey itself to ensure no other copies exist.
+
+You'll be prompted to enter and verify a passphrase—keep it handy as you'll need it multiple times later.
+
+Generate a strong passphrase which could be written down in a secure place or memorized:
+
+```console
+$ gpg --gen-random --armor 0 24
+ydOmByxmDe63u7gqx2XI9eDgpvJwibNH
+```
+
+Use upper case letters for improved readability if passwords are written down by hand:
+
+```console
+$ LC_ALL=C tr -dc '[:upper:]' < /dev/urandom | fold -w 20 | head -n1
+BSSYMUGGTJQVWZZWOPJG
+```
+
+**Important:** Save this credential in a permanent, secure place as it will be needed to issue new sub-keys after expiration, and to provision additional YubiKeys, as well as to your Debian Live environment clipboard, as you'll need it several times throughout to generate keys.
+
+**Tip:** On Linux or OpenBSD, select the password using the mouse or by double-clicking on it to copy to clipboard. Paste using the middle mouse button or `Shift`-`Insert`.
+
+Generate a new key with GPG, selecting `(8) RSA (set your own capabilities)`, `Certify` capability only, and `4096` bit key size.
+
+Do **not** set the master (certify) key to expire—see [Note #3](#notes).
+
+```console
+$ gpg --expert --full-generate-key
+Please select what kind of key you want:
+   (1) RSA and RSA (default)
+   (2) DSA and Elgamal
+   (3) DSA (sign only)
+   (4) RSA (sign only)
+   (7) DSA (set your own capabilities)
+   (8) RSA (set your own capabilities)
+   (9) ECC and ECC
+  (10) ECC (sign only)
+  (11) ECC (set your own capabilities)
+  (13) Existing key
+  (14) Existing key from card
+Your selection? 8
+
+Possible actions for an RSA key: Sign Certify Encrypt Authenticate
+Current allowed actions: Sign Certify Encrypt
+
+   (S) Toggle the sign capability
+   (E) Toggle the encrypt capability
+   (A) Toggle the authenticate capability
+   (Q) Finished
+
+Your selection? E
+
+Possible actions for an RSA key: Sign Certify Encrypt Authenticate
+Current allowed actions: Sign Certify
+
+   (S) Toggle the sign capability
+   (E) Toggle the encrypt capability
+   (A) Toggle the authenticate capability
+   (Q) Finished
+
+Your selection? S
+
+Possible actions for an RSA key: Sign Certify Encrypt Authenticate
+Current allowed actions: Certify
+
+   (S) Toggle the sign capability
+   (E) Toggle the encrypt capability
+   (A) Toggle the authenticate capability
+   (Q) Finished
+
+Your selection? Q
+RSA keys may be between 1024 and 4096 bits long.
+What key size do you want? (2048) 4096
+Requested key size is 4096 bits
+Please specify how long the key should be valid.
+         0 = key does not expire
+      <n>  = key expires in n days
+      <n>w = key expires in n weeks
+      <n>m = key expires in n months
+      <n>y = key expires in n years
+Key is valid for? (0) 0
+Key does not expire at all
+Is this correct? (y/N) y
+```
+
+Input any name and email address (it doesn't have to be valid):
+
+```console
+GnuPG needs to construct a user ID to identify your key.
+
+Real name: Dr Duh
+Email address: doc@duh.to
+Comment: [Optional - leave blank]
+You selected this USER-ID:
+    "Dr Duh <doc@duh.to>"
+
+Change (N)ame, (C)omment, (E)mail, or (O)kay/(Q)uit? o
+
+We need to generate a lot of random bytes. It is a good idea to perform
+some other action (type on the keyboard, move the mouse, utilize the
+disks) during the prime generation; this gives the random number
+generator a better chance to gain enough entropy.
+
+gpg: /tmp.FLZC0xcM/trustdb.gpg: trustdb created
+gpg: key 0xFF3E7D88647EBCDB marked as ultimately trusted
+gpg: directory '/tmp.FLZC0xcM/openpgp-revocs.d' created
+gpg: revocation certificate stored as '/tmp.FLZC0xcM/openpgp-revocs.d/011CE16BD45B27A55BA8776DFF3E7D88647EBCDB.rev'
+public and secret key created and signed.
+
+pub   rsa4096
+
+/0xFF3E7D88647EBCDB 2017-10-09 [C]
+      Key fingerprint = 011C E16B D45B 27A5 5BA8  776D FF3E 7D88 647E BCDB
+uid                              Dr Duh <doc@duh.to>
+```
+
+Export the key ID in gpg: key `0xFF3E7D88647EBCDB` **yours will be different** as a [variable](https://stackoverflow.com/questions/1158091/defining-a-variable-with-or-without-export/1158231#1158231) (`KEYID`) for use later:
+
+```console
+$ export KEYID=0xFF3E7D88647EBCDB
+```
+
+# Sign With Existing Key
+
+(Optional) If you already have a PGP key, you may want to sign the new key with the old one to prove that the new key is controlled by you.
+
+Export your existing key to move it to the working keyring:
+
+```console
+$ gpg --export-secret-keys --armor --output /tmp/new.sec
+```
+
+Export the old key ID as a variable
+
+```console
+$ export OLDKEY=0x1234567887654321
+```
+
+Then sign the new key: 
+
+```console
+$ gpg --default-key $OLDKEY --sign-key $KEYID
+```
+
+# Sub-Keys
+
+Edit the master key to add sub-keys:
+
+```console
+$ gpg --expert --edit-key $KEYID
+
+Secret key is available.
+
+sec  rsa4096/0xEA5DE91459B80592
+    created: 2017-10-09  expires: never       usage: C
+    trust: ultimate      validity: ultimate
+[ultimate] (1). Dr Duh <doc@duh.to>
+```
+
+Use 4096-bit RSA keys.
+
+Use a 1-year expiration for sub-keys—they can be renewed using the offline master key. See [rotating keys](#rotating-keys).
+
+## Signing
+
+Create a [signing key](https://stackoverflow.com/questions/5421107/can-rsa-be-both-used-as-encryption-and-signature/5432623#5432623) by selecting `addkey` then `(4) RSA (sign only)`:
+
+```console
+gpg> addkey
+Key is protected.
+
+You need a passphrase to unlock the secret key for
+user: "Dr Duh <doc@duh.to>"
+4096-bit RSA key, ID 0xFF3E7D88647EBCDB, created 2016-05-24
+
+Please select what kind of key you want:
+   (3) DSA (sign only)
+   (4) RSA (sign only)
+   (5) Elgamal (encrypt only)
+   (6) RSA (encrypt only)
+   (7) DSA (set your own capabilities)
+   (8) RSA (set your own capabilities)
+Your selection? 4
+RSA keys may be between 1024 and 4096 bits long.
+What keysize do you want? (2048) 4096
+Requested keysize is 4096 bits
+Please specify how long the key should be valid.
+         0 = key does not expire
+      <n>  = key expires in n days
+      <n>w = key expires in n weeks
+      <n>m = key expires in n months
+      <n>y = key expires in n years
+Key is valid for? (0) 1y
+Key expires at Mon 10 Sep 2018 00:00:00 UTC
+Is this correct? (y/N) y
+Really create? (y/N) y
+We need to generate a lot of random bytes. It is a good idea to perform
+some other action (type on the keyboard, move the mouse, utilize the
+disks) during the prime generation; this gives the random number
+generator a better chance to gain enough entropy.
+
+sec  rsa4096/0xFF3E7D88647EBCDB
+    created: 2017-10-09  expires: never       usage: C
+    trust: ultimate      validity: ultimate
+ssb  rsa4096/0xBECFA3C1AE191D15
+    created: 2017-10-09  expires: 2018-10-09       usage: S
+[ultimate] (1). Dr Duh <doc@duh.to>
+```
+
+## Encryption
+
+Next, create an [encryption key](https://www.cs.cornell.edu/courses/cs5430/2015sp/notes/rsa_sign_vs_dec.php) by selecting `(6) RSA (encrypt only)`:
+
+```console
+gpg> addkey
+Please select what kind of key you want:
+   (3) DSA (sign only)
+   (4) RSA (sign only)
+   (5) Elgamal (encrypt only)
+   (6) RSA (encrypt only)
+   (7) DSA (set your own capabilities)
+   (8) RSA (set your own capabilities)
+  (10) ECC (sign only)
+  (11) ECC (set your own capabilities)
+  (12) ECC (encrypt only)
+  (13) Existing key
+Your selection? 6
+RSA keys may be between 1024 and 4096 bits long.
+What keysize do you want? (2048) 4096
+Requested keysize is 4096 bits
+Please specify how long the key should be valid.
+         0 = key does not expire
+      <n>  = key expires in n days
+      <n>w = key expires in n weeks
+      <n>m = key expires in n months
+      <n>y = key expires in n years
+Key is valid for? (0) 1y
+Key expires at Mon 10 Sep 2019 00:00:00 UTC
+Is this correct? (y/N) y
+Really create? (y/N) y
+We need to generate a lot of random bytes. It is a good idea to perform
+some other action (type on the keyboard, move the mouse, utilize the
+disks) during the prime generation; this gives the random number
+generator a better chance to gain enough entropy.
+
+sec  rsa4096/0xFF3E7D88647EBCDB
+    created: 2017-10-09  expires: never       usage: C
+    trust: ultimate      validity: ultimate
+ssb  rsa4096/0xBECFA3C1AE191D15
+    created: 2017-10-09  expires: 2018-10-09       usage: S
+ssb  rsa4096/0x5912A795E90DD2CF
+    created: 2017-10-09  expires: 2019-10-09       usage: E
+[ultimate] (1). Dr Duh <doc@duh.to>
+```
+
+## Authentication
+
+Finally, create an [authentication key](https://superuser.com/questions/390265/what-is-a-gpg-with-authenticate-capability-used-for).
+
+GPG doesn't provide an authenticate-only key type, so select `(8) RSA (set your own capabilities)` and toggle the required capabilities until the only allowed action is `Authenticate`:
+
+```console
+gpg> addkey
+Please select what kind of key you want:
+   (3) DSA (sign only)
+   (4) RSA (sign only)
+   (5) Elgamal (encrypt only)
+   (6) RSA (encrypt only)
+   (7) DSA (set your own capabilities)
+   (8) RSA (set your own capabilities)
+  (10) ECC (sign only)
+  (11) ECC (set your own capabilities)
+  (12) ECC (encrypt only)
+  (13) Existing key
+Your selection? 8
+
+Possible actions for an RSA key: Sign Encrypt Authenticate
+Current allowed actions: Sign Encrypt
+
+   (S) Toggle the sign capability
+   (E) Toggle the encrypt capability
+   (A) Toggle the authenticate capability
+   (Q) Finished
+
+Your selection? S
+
+Possible actions for an RSA key: Sign Encrypt Authenticate
+Current allowed actions: Encrypt
+
+   (S) Toggle the sign capability
+   (E) Toggle the encrypt capability
+   (A) Toggle the authenticate capability
+   (Q) Finished
+
+Your selection? E
+
+Possible actions for an RSA key: Sign Encrypt Authenticate
+Current allowed actions:
+
+   (S) Toggle the sign capability
+   (E) Toggle the encrypt capability
+   (A) Toggle the authenticate capability
+   (Q) Finished
+
+Your selection? A
+
+Possible actions for an RSA key: Sign Encrypt Authenticate
+Current allowed actions: Authenticate
+
+   (S) Toggle the sign capability
+   (E) Toggle the encrypt capability
+   (A) Toggle the authenticate capability
+   (Q) Finished
+
+Your selection? Q
+RSA keys may be between 1024 and 4096 bits long.
+What key size do you want? (2048) 4096
+Requested key size is 4096 bits
+Please specify how long the key should be valid.
+         0 = key does not expire
+      <n>  = key expires in n days
+      <n>w = key expires in n weeks
+      <n>m = key expires in n months
+      <n>y = key expires in n years
+Key is valid for? (0) 1y
+Key expires at Mon 10 Sep 2018 00:00:00 UTC
+Is this correct? (y/N) y
+Really create? (y/N) y
+We need to generate a lot of random bytes. It is a good idea to perform
+some other action (type on the keyboard, move the mouse, utilize the
+disks) during the prime generation; this gives the random number
+generator a better chance to gain enough entropy.
+
+sec  rsa4096/0xFF3E7D88647EBCDB
+    created: 2017-10-09  expires: never       usage: C
+    trust: ultimate      validity: ultimate
+ssb  rsa4096/0xBECFA3C1AE191D15
+    created: 2017-10-09  expires: 2018-10-09       usage: S
+ssb  rsa4096/0x5912A795E90DD2CF
+    created: 2017-10-09  expires: 2018-10-09       usage: E
+ssb  rsa4096/0x3F29127E79649A3D
+    created: 2017-10-09  expires: 2018-10-09       usage: A
+[ultimate] (1). Dr Duh <doc@duh.to>
+```
+
+Finish by saving the keys.
+
+```console
+gpg> save
+```
+
+## Add Extra Identities
+
+(Optional) To add additional email addresses or identities, use `adduid`.
+
+First, open the keyring:
+
+```console
+$ gpg --expert --edit-key $KEYID
+```
+
+Then add the new identity:
+
+```console
+gpg> adduid
+Real name: Dr Duh
+Email address: DrDuh@other.org
+Comment:
+You selected this USER-ID:
+    "Dr Duh <DrDuh@other.org>"
+
+sec  rsa4096/0xFF3E7D88647EBCDB
+    created: 2017-10-09  expires: never       usage: C
+    trust: ultimate      validity: ultimate
+ssb  rsa4096/0xBECFA3C1AE191D15
+    created: 2017-10-09  expires: never       usage: S
+ssb  rsa4096/0x5912A795E90DD2CF
+    created: 2017-10-09  expires: never       usage: E
+ssb  rsa4096/0x3F29127E79649A3D
+    created: 2017-10-09  expires: never       usage: A
+[ultimate] (1). Dr Duh <doc@duh.to>
+[ unknown] (2). Dr Duh <DrDuh@other.org>
+
+gpg> trust
+sec  rsa4096/0xFF3E7D88647EBCDB
+    created: 2017-10-09  expires: never       usage: C
+    trust: ultimate      validity: ultimate
+ssb  rsa4096/0xBECFA3C1AE191D15
+    created: 2017-10-09  expires: never       usage: S
+ssb  rsa4096/0x5912A795E90DD2CF
+    created: 2017-10-09  expires: never       usage: E
+ssb  rsa4096/0x3F29127E79649A3D
+    created: 2017-10-09  expires: never       usage: A
+[ultimate] (1). Dr Duh <doc@duh.to>
+[ unknown] (2). Dr Duh <DrDuh@other.org>
+
+Please decide how far you trust this user to correctly verify other users' keys
+(by looking at passports, checking fingerprints from different sources, etc.)
+
+  1 = I don't know or won't say
+  2 = I do NOT trust
+  3 = I trust marginally
+  4 = I trust fully
+  5 = I trust ultimately
+  m = back to the main menu
+
+Your decision? 5
+Do you really want to set this key to ultimate trust? (y/N) y
+
+sec  rsa4096/0xFF3E7D88647EBCDB
+    created: 2017-10-09  expires: never       usage: C
+    trust: ultimate      validity: ultimate
+ssb  rsa4096/0xBECFA3C1AE191D15
+    created: 2017-10-09  expires: never       usage:
+
+ S
+ssb  rsa4096/0x5912A795E90DD2CF
+    created: 2017-10-09  expires: never       usage: E
+ssb  rsa4096/0x3F29127E79649A3D
+    created: 2017-10-09  expires: never       usage: A
+[ultimate] (1). Dr Duh <doc@duh.to>
+[ unknown] (2). Dr Duh <DrDuh@other.org>
+
+gpg> uid 1
+
+sec  rsa4096/0xFF3E7D88647EBCDB
+created: 2017-10-09  expires: never       usage: C
+    trust: ultimate      validity: ultimate
+ssb  rsa4096/0xBECFA3C1AE191D15
+    created: 2017-10-09  expires: never       usage: S
+ssb  rsa4096/0x5912A795E90DD2CF
+    created: 2017-10-09  expires: never       usage: E
+ssb  rsa4096/0x3F29127E79649A3D
+    created: 2017-10-09  expires: never       usage: A
+[ultimate] (1)* Dr Duh <doc@duh.to>
+[ unknown] (2). Dr Duh <DrDuh@other.org>
+
+gpg> primary
+
+sec  rsa4096/0xFF3E7D88647EBCDB
+created: 2017-10-09  expires: never       usage: C
+    trust: ultimate      validity: ultimate
+ssb  rsa4096/0xBECFA3C1AE191D15
+    created: 2017-10-09  expires: never       usage: S
+ssb  rsa4096/0x5912A795E90DD2CF
+    created: 2017-10-09  expires: never       usage: E
+ssb  rsa4096/0x3F29127E79649A3D
+    created: 2017-10-09  expires: never       usage: A
+[ultimate] (1)* Dr Duh <doc@duh.to>
+[ unknown] (2)  Dr Duh <DrDuh@other.org>
+
+gpg> save
+```
+
+By default, the last identity added will be the primary user ID - use `primary` to change that.
