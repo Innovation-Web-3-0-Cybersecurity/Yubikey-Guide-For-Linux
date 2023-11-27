@@ -29,6 +29,14 @@ Welcome to the `Yubikey-Guide-For-Linux`. This guide illustrates the usage of th
   - [Encryption](#encryption)
   - [Authentication](#authentication)
   - [Add Extra Identities](#add-extra-identities)
+- [Verify GPG Keys](#verify-gpg-keys)
+- [Export Secret Keys](#export-secret-keys)
+- [Revocation Certificate](#revocation-certificate)
+- [Backup](#backup)
+- [Export Public Keys](#export-public-keys)
+- [Keyserver](#keyserver)
+- [Configure Smartcard](#configure-smartcard)
+
 
 ## Special Note 
 
@@ -71,7 +79,7 @@ $ curl -LfO https://cdimage.debian.org/debian-cd/current-live/amd64/iso-hybrid/S
 $ curl -LfO https://cdimage.debian.org/debian-cd/current-live/amd64/iso-hybrid/$(awk '/xfce.iso/ {print $2}' SHA512SUMS)
 ```
 
-Verify the signature of the hashes file with GPG:
+1. Verify the signature of the hashes file with GPG:
 
 ```console
 $ gpg --verify SHA512SUMS.sign SHA512SUMS
@@ -99,7 +107,7 @@ If the public key cannot be received, try changing the DNS resolver and/or use a
 $ gpg --keyserver hkps://keyserver.ubuntu.com:443 --recv DF9B9C49EAA9298432589D76DA87E80D6294BE9B
 ```
 
-Ensure the SHA512 hash of the live image matches the one in the signed file - if there following command produces output, it is correct:
+2. Ensure the SHA512 hash of the live image matches the one in the signed file - if there following command produces output, it is correct:
 
 ```console
 $ grep $(sha512sum debian-live-*-amd64-xfce.iso) SHA512SUMS
@@ -108,7 +116,7 @@ SHA512SUMS:3c74715380c804798d892f55ebe4d2f79ae266be93df2468a066c192cfe1af6ddae31
 
 See [Verifying authenticity of Debian CDs](https://www.debian.org/CD/verify) for more information.
 
-Mount a storage device and copy the image to it:
+3. Mount a storage device and copy the image to it:
 
 ```console
 $ sudo dmesg | tail
@@ -431,6 +439,7 @@ $ sudo cp -v installer/iso/*.iso /dev/sdb; sync
 
 With this image, you won't need to manually create a [temporary working directory](#temporary-working-directory) or [harden the configuration](#harden-configuration), as it was done when creating the image.
 
+
 # Entropy
 
 Generating cryptographic keys requires high-quality [randomness](https://www.random.org/randomness/), measured as entropy.
@@ -534,7 +543,7 @@ The first key to generate is the master key. It will be used for certification o
 
 You'll be prompted to enter and verify a passphrase—keep it handy as you'll need it multiple times later.
 
-Generate a strong passphrase which could be written down in a secure place or memorized:
+1. Generate a strong passphrase which could be written down in a secure place or memorized:
 
 ```console
 $ gpg --gen-random --armor 0 24
@@ -550,11 +559,11 @@ BSSYMUGGTJQVWZZWOPJG
 
 **Important:** Save this credential in a permanent, secure place as it will be needed to issue new sub-keys after expiration, and to provision additional YubiKeys, as well as to your Debian Live environment clipboard, as you'll need it several times throughout to generate keys.
 
-**Tip:** On Linux or OpenBSD, select the password using the mouse or by double-clicking on it to copy to clipboard. Paste using the middle mouse button or `Shift`-`Insert`.
+**Tip:** Select the password using the mouse or by double-clicking on it to copy to clipboard. Paste using the middle mouse button or `Shift`-`Insert`.
 
-Generate a new key with GPG, selecting `(8) RSA (set your own capabilities)`, `Certify` capability only, and `4096` bit key size.
+**Do not** set the master (certify) key to expire—see [Note #3](#notes).
 
-Do **not** set the master (certify) key to expire—see [Note #3](#notes).
+2. Generate a new key with GPG, selecting `(8) RSA (set your own capabilities)`, `Certify` capability only, and `4096` bit key size.
 
 ```console
 $ gpg --expert --full-generate-key
@@ -615,7 +624,7 @@ Key does not expire at all
 Is this correct? (y/N) y
 ```
 
-Input any name and email address (it doesn't have to be valid):
+3. Input any name and email address (it doesn't have to be valid):
 
 ```console
 GnuPG needs to construct a user ID to identify your key.
@@ -656,19 +665,19 @@ $ export KEYID=0xFF3E7D88647EBCDB
 
 (Optional) If you already have a PGP key, you may want to sign the new key with the old one to prove that the new key is controlled by you.
 
-Export your existing key to move it to the working keyring:
+1. Export your existing key to move it to the working keyring:
 
 ```console
 $ gpg --export-secret-keys --armor --output /tmp/new.sec
 ```
 
-Export the old key ID as a variable
+2. Export the old key ID as a variable
 
 ```console
 $ export OLDKEY=0x1234567887654321
 ```
 
-Then sign the new key: 
+3. Then sign the new key: 
 
 ```console
 $ gpg --default-key $OLDKEY --sign-key $KEYID
@@ -985,3 +994,278 @@ gpg> save
 ```
 
 By default, the last identity added will be the primary user ID - use `primary` to change that.
+
+# Verify GPG Keys
+
+List the generated secret keys and verify the output:
+
+```console
+$ gpg -K
+/tmp.FLZC0xcM/pubring.kbx
+-------------------------------------------------------------------------
+sec   rsa4096/0xFF3E7D88647EBCDB 2017-10-09 [C]
+      Key fingerprint = 011C E16B D45B 27A5 5BA8  776D FF3E 7D88 647E BCDB
+uid                            Dr Duh <doc@duh.to>
+ssb   rsa4096/0xBECFA3C1AE191D15 2017-10-09 [S] [expires: 2018-10-09]
+ssb   rsa4096/0x5912A795E90DD2CF 2017-10-09 [E] [expires: 2018-10-09]
+ssb   rsa4096/0x3F29127E79649A3D 2017-10-09 [A] [expires: 2018-10-09]
+```
+
+Add any additional identities or email addresses you wish to associate using the `adduid` command.
+
+**Tip:** Verify with an OpenPGP [key best practice checker](https://riseup.net/en/security/message-security/openpgp/best-practices#openpgp-key-checks):
+
+```console
+$ gpg --export $KEYID | hokey lint
+```
+
+The output will display any problems with your key in red text. If everything is green, your key passes each of the tests. If it is red, your key has failed one of the tests.
+
+> `hokey` may warn (orange text) about cross certification for the authentication key. GPG's [Signing Subkey Cross-Certification](https://gnupg.org/faq/subkey-cross-certify.html) documentation has more detail on cross certification, and GPG v2.2.1 notes "subkey <keyid> does not sign and so does not need to be cross-certified". `hokey` may also indicate a problem (red text) with `Key expiration times: []` on the primary key (see [Note #3](#notes) about not setting an expiry for the primary key).
+
+# Export Secret Keys
+
+The master key and sub-keys will be encrypted with your passphrase when exported.
+
+Save a copy of your keys:
+
+```console
+$ gpg --armor --export-secret-keys $KEYID > $GNUPGHOME/mastersub.key
+
+$ gpg --armor --export-secret-subkeys $KEYID > $GNUPGHOME/sub.key
+```
+
+# Revocation Certificate
+
+Although we will backup and store the master key in a safe place, it is best practice to never rule out the possibility of losing it or having the backup fail. Without the master key, it will be impossible to renew or rotate subkeys or generate a revocation certificate, and the PGP identity will be useless.
+
+Even worse, we cannot advertise this fact in any way to those that are using our keys. It is reasonable to assume this *will* occur at some point, and the only remaining way to deprecate orphaned keys is a revocation certificate.
+
+To create the revocation certificate:
+
+```console
+$ gpg --output $GNUPGHOME/revoke.asc --gen-revoke $KEYID
+```
+
+The `revoke.asc` certificate file should be stored (or printed) in a (secondary) place that allows retrieval in case the main backup fails.
+
+# Backup
+
+Once keys are moved to YubiKey, they cannot be moved again! Create an **encrypted** backup of the keyring on removable media so you can keep it offline in a safe place.
+
+**Tip:** The ext2 filesystem (without encryption) can be mounted on both Linux and OpenBSD.
+
+As an additional backup measure, consider using a [paper copy](https://www.jabberwocky.com/software/paperkey/) of the keys. The [Linux Kernel Maintainer PGP Guide](https://www.kernel.org/doc/html/latest/process/maintainer-pgp-guide.html#back-up-your-master-key-for-disaster-recovery) points out that such printouts *are still password-protected*. It recommends writing the password on the paper, as it will be unlikely that you remember the original key password used when the paper backup was created. Obviously, you need a really good place to keep such a printout.
+
+It is strongly recommended to keep even encrypted OpenPGP private key material offline to deter [key overwriting attacks](https://www.kopenpgp.com/), for example.
+
+1. Attach another external storage device and check its label:
+
+```console
+$ sudo dmesg | tail
+mmc0: new high-speed SDHC card at address a001
+mmcblk0: mmc0:a001 SS16G 14.8 GiB
+
+$ sudo fdisk -l /dev/mmcblk0
+Disk /dev/mmcblk0: 14.9 GiB, 15931539456 bytes, 31116288 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+```
+
+2. Write it with random data to prepare for encryption:
+
+```console
+$ sudo dd if=/dev/urandom of=/dev/mmcblk0 bs=4M status=progress
+```
+
+**Do not** remove your external drive until the data writing is done.
+
+3. Erase and create a new partition table:
+
+```console
+$ sudo fdisk /dev/mmcblk0
+
+Welcome to fdisk (util-linux 2.33.1).
+Changes will remain in memory only, until you decide to write them.
+Be careful before using the write command.
+
+Device does not contain a recognized partition table.
+Created a new DOS disk label with disk identifier 0x3c1ad14a.
+
+Command (m for help): g
+Created a new GPT disk label (GUID: 4E7495FD-85A3-3E48-97FC-2DD8D41516C3).
+
+Command (m for help): w
+The partition table has been altered.
+Calling ioctl() to re-read partition table.
+Syncing disks.
+```
+
+4. Create a new partition with a 25 Megabyte size:
+
+```console
+$ sudo fdisk /dev/mmcblk0
+
+Welcome to fdisk (util-linux 2.36.1).
+Changes will remain in memory only, until you decide to write them.
+Be careful before using the write command.
+
+Command (m for help): n
+Partition number (1-128, default 1):
+First sector (2048-30261214, default 2048):
+Last sector, +/-sectors or +/-size{K,M,G,T,P} (2048-30261214, default 30261214): +25M
+
+Created a new partition 1 of type 'Linux filesystem' and of size 25 MiB.
+
+Command (m for help): w
+The partition table has been altered.
+Calling ioctl() to re-read partition table.
+Syncing disks.
+```
+
+5. Use [LUKS](
+
+https://askubuntu.com/questions/97196/how-secure-is-an-encrypted-luks-filesystem) to encrypt the new partition. Generate a different password which will be used to protect the filesystem:
+
+```console
+$ sudo cryptsetup luksFormat /dev/mmcblk0p1
+
+WARNING!
+========
+This will overwrite data on /dev/mmcblk0p1 irrevocably.
+
+Are you sure? (Type uppercase yes): YES
+Enter passphrase for /dev/mmcblk0p1:
+Verify passphrase:
+```
+
+6. Mount the partition:
+
+```console
+$ sudo cryptsetup luksOpen /dev/mmcblk0p1 secret
+Enter passphrase for /dev/mmcblk0p1:
+```
+
+7. Create an ext2 filesystem:
+
+```console
+$ sudo mkfs.ext2 /dev/mapper/secret -L gpg-$(date +%F)
+```
+
+8. Mount the filesystem and copy the temporary GnuPG directory with the keyring:
+
+```console
+$ sudo mkdir /mnt/encrypted-storage
+
+$ sudo mount /dev/mapper/secret /mnt/encrypted-storage
+
+$ sudo cp -avi $GNUPGHOME /mnt/encrypted-storage/
+```
+
+9. **Optional:** Backup the OneRNG package:
+
+```console
+$ sudo cp onerng_3.7-1_all.deb /mnt/encrypted-storage/
+```
+
+**Note:** If you plan on setting up multiple keys, keep the backup mounted or remember to terminate the GPG process before [saving](https://lists.gnupg.org/pipermail/gnupg-users/2016-July/056353.html).
+
+10. Unmount, close, and disconnect the encrypted volume:
+
+```console
+$ sudo umount /mnt/encrypted-storage/
+
+$ sudo cryptsetup luksClose secret
+```
+
+# Export Public Keys
+
+**Important:** Without the *public* key, you will not be able to use GPG to encrypt, decrypt, nor sign messages. However, you will still be able to use YubiKey for SSH authentication.
+
+Create another partition on the removable storage device to store the public key or reconnect networking and upload to a key server.
+
+```console
+$ sudo fdisk /dev/mmcblk0
+
+Welcome to fdisk (util-linux 2.36.1).
+Changes will remain in memory only, until you decide to write them.
+Be careful before using the write command.
+
+Command (m for help): n
+Partition number (2-128, default 2):
+First sector (53248-30261214, default 53248):
+Last sector, +/-sectors or +/-size{K,M,G,T,P} (53248-30261214, default 30261214): +25M
+
+Created a new partition 2 of type 'Linux filesystem' and of size 25 MiB.
+
+Command (m for help): w
+The partition table has been altered.
+Calling ioctl() to re-read partition table.
+Syncing disks.
+
+$ sudo mkfs.ext2 /dev/mmcblk0p2
+
+$ sudo mkdir /mnt/public
+
+$ sudo mount /dev/mmcblk0p2 /mnt/public/
+
+$ gpg --armor --export $KEYID | sudo tee /mnt/public/gpg-$KEYID-$(date +%F).asc
+```
+
+# Keyserver
+
+(Optional) Upload the public key to a [public keyserver](https://debian-administration.org/article/451/Submitting_your_GPG_key_to_a_keyserver):
+
+```console
+$ gpg --send-key $KEYID
+
+$ gpg --keyserver keys.gnupg.net --send-key $KEYID
+
+$ gpg --keyserver hkps://keyserver.ubuntu.com:443 --send-key $KEYID
+```
+
+Or if [uploading to keys.openpgp.org](https://keys.openpgp.org/about/usage):
+
+```console
+$ gpg --send-key $KEYID | curl -T - https://keys.openpgp.org
+```
+
+# Configure Smartcard
+
+Plug in a YubiKey and use GPG to configure it as a smartcard:
+
+```console
+$ gpg --card-edit
+
+Reader ...........: Yubico Yubikey 4 OTP U2F CCID
+Application ID ...: D2760001240102010006055532110000
+Application type .: OpenPGP
+Version ..........: 3.4
+Manufacturer .....: Yubico
+Serial number ....: 05553211
+Name of cardholder: [not set]
+Language prefs ...: [not set]
+Salutation .......:
+URL of public key : [not set]
+Login data .......: [not set]
+Signature PIN ....: not forced
+Key attributes ...: rsa2048 rsa2048 rsa2048
+Max. PIN lengths .: 127 127 127
+PIN retry counter : 3 0 3
+Signature counter : 0
+KDF setting ......: off
+Signature key ....: [none]
+Encryption key....: [none]
+Authentication key: [none]
+General key info..: [none]
+```
+
+Enter administrative mode:
+
+```console
+gpg/card> admin
+Admin commands are allowed
+```
+
+**Note:** If the card is locked, see [Reset](#reset).
