@@ -36,7 +36,27 @@ Welcome to the `Yubikey-Guide-For-Linux`. This guide illustrates the usage of th
 - [Export Public Keys](#export-public-keys)
 - [Keyserver](#keyserver)
 - [Configure Smartcard](#configure-smartcard)
-
+  - [Enable Key Derived Function](#enable-key-derived-function)
+  - [Change PIN](#change-pin)
+  - [Set Information](#set-information)
+- [Transfer Keys](#transfer-keys)
+  - [Signing](#signing)
+  - [Encryption](#encryption)
+  - [Authentication](#authentication)
+- [Verify Card](#verify-card)
+- [Multiple YubiKeys](#multiple-yubiKeys)
+  - [Switching Between Two or More YubiKeys](#switching-between-two-or-more-yubiKeys)
+- [Multiple Hosts](#multiple-hosts)
+  - [Initial Setup on First Host](#initial-setup-on-first-host)
+  - [Setting up a Second Host](#setting-up-a-second-host)
+  - [Alternative Approach](#alternative-approach)
+- [Cleanup](#cleanup)
+  - [Preparation](#preparation)
+- [Key Management](#key-management)
+  - [Using Keys](#using-keys)
+  - [Encrypting and Decrypting Messages](#encrypting-and-decrypting-messages)
+  - [Signing and Verifying](#signing-and-verifying)
+  - [Shell Functions](#shell-functions)
 
 ## Special Note 
 
@@ -438,7 +458,6 @@ $ sudo cp -v installer/iso/*.iso /dev/sdb; sync
 ```
 
 With this image, you won't need to manually create a [temporary working directory](#temporary-working-directory) or [harden the configuration](#harden-configuration), as it was done when creating the image.
-
 
 # Entropy
 
@@ -890,110 +909,58 @@ Finish by saving the keys.
 gpg> save
 ```
 
+
+
+
+
+
+
+
+
+
+
+
+
+
 ## Add Extra Identities
 
-(Optional) To add additional email addresses or identities, use `adduid`.
+*Optional:* To include additional email addresses or identities, use the `adduid` command.
 
-First, open the keyring:
+1. Open the keyring:
 
-```console
-$ gpg --expert --edit-key $KEYID
-```
+   ```console
+   $ gpg --expert --edit-key $KEYID
+   ```
 
-Then add the new identity:
+2. Add a new identity:
 
-```console
-gpg> adduid
-Real name: Dr Duh
-Email address: DrDuh@other.org
-Comment:
-You selected this USER-ID:
-    "Dr Duh <DrDuh@other.org>"
+   ```console
+   gpg> adduid
+   Real name: Dr Duh
+   Email address: DrDuh@other.org
+   Comment:
+   You selected this USER-ID:
+       "Dr Duh <DrDuh@other.org>"
+   ```
 
-sec  rsa4096/0xFF3E7D88647EBCDB
-    created: 2017-10-09  expires: never       usage: C
-    trust: ultimate      validity: ultimate
-ssb  rsa4096/0xBECFA3C1AE191D15
-    created: 2017-10-09  expires: never       usage: S
-ssb  rsa4096/0x5912A795E90DD2CF
-    created: 2017-10-09  expires: never       usage: E
-ssb  rsa4096/0x3F29127E79649A3D
-    created: 2017-10-09  expires: never       usage: A
-[ultimate] (1). Dr Duh <doc@duh.to>
-[ unknown] (2). Dr Duh <DrDuh@other.org>
+   Make trust decisions and set the ultimate trust level:
 
-gpg> trust
-sec  rsa4096/0xFF3E7D88647EBCDB
-    created: 2017-10-09  expires: never       usage: C
-    trust: ultimate      validity: ultimate
-ssb  rsa4096/0xBECFA3C1AE191D15
-    created: 2017-10-09  expires: never       usage: S
-ssb  rsa4096/0x5912A795E90DD2CF
-    created: 2017-10-09  expires: never       usage: E
-ssb  rsa4096/0x3F29127E79649A3D
-    created: 2017-10-09  expires: never       usage: A
-[ultimate] (1). Dr Duh <doc@duh.to>
-[ unknown] (2). Dr Duh <DrDuh@other.org>
+   ```console
+   gpg> trust
+   ...
+   Your decision? 5
+   Do you really want to set this key to ultimate trust? (y/N) y
+   ```
 
-Please decide how far you trust this user to correctly verify other users' keys
-(by looking at passports, checking fingerprints from different sources, etc.)
+   Confirm the changes and save:
 
-  1 = I don't know or won't say
-  2 = I do NOT trust
-  3 = I trust marginally
-  4 = I trust fully
-  5 = I trust ultimately
-  m = back to the main menu
+   ```console
+   gpg> uid 1
+   gpg> primary
+   gpg> save
+   ```
 
-Your decision? 5
-Do you really want to set this key to ultimate trust? (y/N) y
-
-sec  rsa4096/0xFF3E7D88647EBCDB
-    created: 2017-10-09  expires: never       usage: C
-    trust: ultimate      validity: ultimate
-ssb  rsa4096/0xBECFA3C1AE191D15
-    created: 2017-10-09  expires: never       usage:
-
- S
-ssb  rsa4096/0x5912A795E90DD2CF
-    created: 2017-10-09  expires: never       usage: E
-ssb  rsa4096/0x3F29127E79649A3D
-    created: 2017-10-09  expires: never       usage: A
-[ultimate] (1). Dr Duh <doc@duh.to>
-[ unknown] (2). Dr Duh <DrDuh@other.org>
-
-gpg> uid 1
-
-sec  rsa4096/0xFF3E7D88647EBCDB
-created: 2017-10-09  expires: never       usage: C
-    trust: ultimate      validity: ultimate
-ssb  rsa4096/0xBECFA3C1AE191D15
-    created: 2017-10-09  expires: never       usage: S
-ssb  rsa4096/0x5912A795E90DD2CF
-    created: 2017-10-09  expires: never       usage: E
-ssb  rsa4096/0x3F29127E79649A3D
-    created: 2017-10-09  expires: never       usage: A
-[ultimate] (1)* Dr Duh <doc@duh.to>
-[ unknown] (2). Dr Duh <DrDuh@other.org>
-
-gpg> primary
-
-sec  rsa4096/0xFF3E7D88647EBCDB
-created: 2017-10-09  expires: never       usage: C
-    trust: ultimate      validity: ultimate
-ssb  rsa4096/0xBECFA3C1AE191D15
-    created: 2017-10-09  expires: never       usage: S
-ssb  rsa4096/0x5912A795E90DD2CF
-    created: 2017-10-09  expires: never       usage: E
-ssb  rsa4096/0x3F29127E79649A3D
-    created: 2017-10-09  expires: never       usage: A
-[ultimate] (1)* Dr Duh <doc@duh.to>
-[ unknown] (2)  Dr Duh <DrDuh@other.org>
-
-gpg> save
-```
-
-By default, the last identity added will be the primary user ID - use `primary` to change that.
+   By default, the last identity added will be the primary user ID; use `primary` to change that.
 
 # Verify GPG Keys
 
@@ -1011,7 +978,7 @@ ssb   rsa4096/0x5912A795E90DD2CF 2017-10-09 [E] [expires: 2018-10-09]
 ssb   rsa4096/0x3F29127E79649A3D 2017-10-09 [A] [expires: 2018-10-09]
 ```
 
-Add any additional identities or email addresses you wish to associate using the `adduid` command.
+Use the `adduid` command to associate additional identities or email addresses.
 
 **Tip:** Verify with an OpenPGP [key best practice checker](https://riseup.net/en/security/message-security/openpgp/best-practices#openpgp-key-checks):
 
@@ -1019,15 +986,9 @@ Add any additional identities or email addresses you wish to associate using the
 $ gpg --export $KEYID | hokey lint
 ```
 
-The output will display any problems with your key in red text. If everything is green, your key passes each of the tests. If it is red, your key has failed one of the tests.
-
-> `hokey` may warn (orange text) about cross certification for the authentication key. GPG's [Signing Subkey Cross-Certification](https://gnupg.org/faq/subkey-cross-certify.html) documentation has more detail on cross certification, and GPG v2.2.1 notes "subkey <keyid> does not sign and so does not need to be cross-certified". `hokey` may also indicate a problem (red text) with `Key expiration times: []` on the primary key (see [Note #3](#notes) about not setting an expiry for the primary key).
-
 # Export Secret Keys
 
-The master key and sub-keys will be encrypted with your passphrase when exported.
-
-Save a copy of your keys:
+Encrypt the master key and sub-keys with your passphrase when exporting:
 
 ```console
 $ gpg --armor --export-secret-keys $KEYID > $GNUPGHOME/mastersub.key
@@ -1037,27 +998,23 @@ $ gpg --armor --export-secret-subkeys $KEYID > $GNUPGHOME/sub.key
 
 # Revocation Certificate
 
-Although we will backup and store the master key in a safe place, it is best practice to never rule out the possibility of losing it or having the backup fail. Without the master key, it will be impossible to renew or rotate subkeys or generate a revocation certificate, and the PGP identity will be useless.
-
-Even worse, we cannot advertise this fact in any way to those that are using our keys. It is reasonable to assume this *will* occur at some point, and the only remaining way to deprecate orphaned keys is a revocation certificate.
-
-To create the revocation certificate:
+Create a revocation certificate:
 
 ```console
 $ gpg --output $GNUPGHOME/revoke.asc --gen-revoke $KEYID
 ```
 
-The `revoke.asc` certificate file should be stored (or printed) in a (secondary) place that allows retrieval in case the main backup fails.
+Store the `revoke.asc` certificate in a secondary location for retrieval in case of backup failure.
 
 # Backup
 
-Once keys are moved to YubiKey, they cannot be moved again! Create an **encrypted** backup of the keyring on removable media so you can keep it offline in a safe place.
+After moving keys to the YubiKey, remember that they cannot be moved again. Create an **encrypted** backup of the keyring on removable media and store it offline in a secure location.
 
 **Tip:** The ext2 filesystem (without encryption) can be mounted on both Linux and OpenBSD.
 
-As an additional backup measure, consider using a [paper copy](https://www.jabberwocky.com/software/paperkey/) of the keys. The [Linux Kernel Maintainer PGP Guide](https://www.kernel.org/doc/html/latest/process/maintainer-pgp-guide.html#back-up-your-master-key-for-disaster-recovery) points out that such printouts *are still password-protected*. It recommends writing the password on the paper, as it will be unlikely that you remember the original key password used when the paper backup was created. Obviously, you need a really good place to keep such a printout.
+As an additional backup measure, consider creating a [paper copy](https://www.jabberwocky.com/software/paperkey/) of the keys. The [Linux Kernel Maintainer PGP Guide](https://www.kernel.org/doc/html/latest/process/maintainer-pgp-guide.html#back-up-your-master-key-for-disaster-recovery) recommends password-protecting the printout, and suggests writing the password on the paper for easy reference. Ensure the printout is stored securely.
 
-It is strongly recommended to keep even encrypted OpenPGP private key material offline to deter [key overwriting attacks](https://www.kopenpgp.com/), for example.
+It is strongly recommended to keep even encrypted OpenPGP private key material offline to deter [key overwriting attacks](https://www.kopenpgp.com/).
 
 1. Attach another external storage device and check its label:
 
@@ -1073,20 +1030,20 @@ Sector size (logical/physical): 512 bytes / 512 bytes
 I/O size (minimum/optimal): 512 bytes / 512 bytes
 ```
 
-2. Write it with random data to prepare for encryption:
+2. Write random data to prepare for encryption:
 
 ```console
 $ sudo dd if=/dev/urandom of=/dev/mmcblk0 bs=4M status=progress
 ```
 
-**Do not** remove your external drive until the data writing is done.
+**Caution:** Do not remove your external drive until the data writing is complete.
 
 3. Erase and create a new partition table:
 
 ```console
 $ sudo fdisk /dev/mmcblk0
 
-Welcome to fdisk (util-linux 2.33.1).
+Welcome to fdisk (util-linux 2.36.1).
 Changes will remain in memory only, until you decide to write them.
 Be careful before using the write command.
 
@@ -1124,9 +1081,7 @@ Calling ioctl() to re-read partition table.
 Syncing disks.
 ```
 
-5. Use [LUKS](
-
-https://askubuntu.com/questions/97196/how-secure-is-an-encrypted-luks-filesystem) to encrypt the new partition. Generate a different password which will be used to protect the filesystem:
+5. Use [LUKS](https://askubuntu.com/questions/97196/how-secure-is-an-encrypted-luks-filesystem) to encrypt the new partition. Generate a different password to protect the filesystem:
 
 ```console
 $ sudo cryptsetup luksFormat /dev/mmcblk0p1
@@ -1215,7 +1170,9 @@ $ gpg --armor --export $KEYID | sudo tee /mnt/public/gpg-$KEYID-$(date +%F).asc
 
 # Keyserver
 
-(Optional) Upload the public key to a [public keyserver](https://debian-administration.org/article/451/Submitting_your_GPG_key_to_a_keyserver):
+(Optional) Upload the public key to a [public keyserver](https://debian-admin
+
+istration.org/article/451/Submitting_your_GPG_key_to_a_keyserver):
 
 ```console
 $ gpg --send-key $KEYID
@@ -1269,3 +1226,559 @@ Admin commands are allowed
 ```
 
 **Note:** If the card is locked, see [Reset](#reset).
+
+## Enable Key Derived Function 
+
+Key Derived Function (KDF) enables YubiKey to store the hash of the PIN, preventing the PIN from being passed as plain text. Note that this requires a relatively new version of GnuPG to work and may not be compatible with other GPG clients (notably mobile clients). These incompatible clients will be unable to use the YubiKey GPG functions as the PIN will always be rejected. If you are not sure you will only be using your YubiKey on supported platforms, it may be better to skip this step.
+
+```console
+gpg/card> kdf-setup
+```
+
+## Change PIN
+
+Your Yubikey *PIN* and *Admin PIN* are set to their default values (`123456` and `12345678` respectively). This would allow an attacker to use your Yubikey or reset your PIN. Please see the [Change PIN](#change-pin) section for details on how to change your PINs.
+
+The [GPG interface](https://developers.yubico.com/PGP/) is separate from other modules on a Yubikey such as the [PIV interface](https://developers.yubico.com/PIV/Introduction/YubiKey_and_PIV.html). The GPG interface has its own *PIN*, *Admin PIN*, and *Reset Code* - these should be changed from default values!
+
+Entering the user *PIN* incorrectly three times will cause the PIN to become blocked; it can be unblocked with either the *Admin PIN* or *Reset Code*.
+
+Entering the *Admin PIN* or *Reset Code* incorrectly three times destroys all GPG data on the card. The Yubikey will have to be reconfigured.
+
+| Name       | Default Value | Use                                                |
+|------------|---------------|----------------------------------------------------|
+| PIN        | `123456`      | decrypt and authenticate (SSH)                    |
+| Admin PIN  | `12345678`    | reset *PIN*, change *Reset Code*, add keys and owner information |
+| Reset code | _**None**_      | reset *PIN* ([more information](https://forum.yubico.com/viewtopicd01c.html?p=9055#p9055)) |
+
+Values are valid up to 127 ASCII characters and must be at least 6 (*PIN*) or 8 (*Admin PIN*, *Reset Code*) characters. See the GnuPG documentation on [Managing PINs](https://www.gnupg.org/howtos/card-howto/en/ch03s02.html) for details.
+
+To update the GPG PINs on the Yubikey:
+
+```console
+gpg/card> passwd
+gpg: OpenPGP card no. D2760001240102010006055532110000 detected
+
+1 - change PIN
+2 - unblock PIN
+3 - change Admin PIN
+4 - set the Reset Code
+Q - quit
+
+Your selection? 3
+PIN changed.
+
+1 - change PIN
+2 - unblock PIN
+3 - change Admin PIN
+4 - set the Reset Code
+Q - quit
+
+Your selection? 1
+PIN changed.
+
+1 - change PIN
+2 - unblock PIN
+3 - change Admin PIN
+4 - set the Reset Code
+Q - quit
+
+Your selection? q
+```
+
+**Note** The number of retry attempts can be changed later with the following command, documented [here](https://docs.yubico.com/software/yubikey/tools/ykman/OpenPGP_Commands.html#ykman-openpgp-access-set-retries-options-pin-retries-reset-code-retries-admin-pin-retries):
+
+```bash
+$ ykman openpgp access set-retries 5 5 5 -f -a YOUR_ADMIN_PIN
+```
+
+## Set Information
+
+Some fields are optional.
+
+```console
+gpg/card> name
+Cardholder's surname: Duh
+Cardholder's given name: Dr
+
+gpg/card> lang
+Language preferences: en
+
+gpg/card> login
+Login data (account name): doc@duh.to
+
+gpg/card> list
+
+Application ID ...: D2760001240102010006055532110000
+Version ..........: 3.4
+Manufacturer .....: unknown
+Serial number ....: 05553211
+Name of cardholder: Dr Duh
+Language prefs ...: en
+Sex ..............: unspecified
+URL of public key : [not set]
+Login data .......: doc@duh.to
+Private DO 4 .....: [not set]
+Signature PIN ....: not forced
+Key attributes ...: rsa2048 rsa2048 rsa2048
+Max. PIN lengths .: 127 127 127
+PIN retry counter : 3 0 3
+Signature counter : 0
+KDF setting ......: on
+Signature key ....: [none]
+Encryption key....: [none]
+Authentication key: [none]
+General key info..: [none]
+
+gpg/card> quit
+```
+
+# Transfer Keys
+
+**Important:** Transferring keys to YubiKey using `keytocard` is a destructive, one-way operation only. Make sure you've made a backup before proceeding: `keytocard` converts the local, on-disk key into a stub, which means the on-disk copy is no longer usable to transfer to subsequent security key devices or mint additional keys.
+
+Previous GPG versions required the `toggle` command before selecting keys. The currently selected key(s) are indicated with an `*`. When moving keys, only one key should be selected at a time.
+
+```console
+$ gpg --edit-key $KEYID
+
+Secret key is available.
+
+sec  rsa4096/0xFF3E7D88647EBCDB
+    created: 2017-10-09  expires: never       usage: C
+    trust: ultimate      validity: ultimate
+ssb  rsa4096/0xBECFA3C1AE191D15
+    created: 2017-10-09  expires: 2018-10-09  usage: S
+
+
+ssb  rsa4096/0x5912A795E90DD2CF
+    created: 2017-10-09  expires: 2018-10-09  usage: E
+ssb  rsa4096/0x3F29127E79649A3D
+    created: 2017-10-09  expires: 2018-10-09  usage: A
+[ultimate] (1). Dr Duh <doc@duh.to>
+```
+
+## Signing
+
+You will be prompted for the master key passphrase and Admin PIN.
+
+Select and transfer the signature key.
+
+```console
+gpg> key 1
+
+sec  rsa4096/0xFF3E7D88647EBCDB
+    created: 2017-10-09  expires: never       usage: C
+    trust: ultimate      validity: ultimate
+ssb* rsa4096/0xBECFA3C1AE191D15
+    created: 2017-10-09  expires: 2018-10-09  usage: S
+ssb  rsa4096/0x5912A795E90DD2CF
+    created: 2017-10-09  expires: 2018-10-09  usage: E
+ssb  rsa4096/0x3F29127E79649A3D
+    created: 2017-10-09  expires: 2018-10-09  usage: A
+[ultimate] (1). Dr Duh <doc@duh.to>
+
+gpg> keytocard
+Please select where to store the key:
+   (1) Signature key
+   (3) Authentication key
+Your selection? 1
+
+You need a passphrase to unlock the secret key for
+user: "Dr Duh <doc@duh.to>"
+4096-bit RSA key, ID 0xBECFA3C1AE191D15, created 2016-05-24
+```
+
+## Encryption
+
+Type `key 1` again to de-select and `key 2` to select the next key:
+
+```console
+gpg> key 1
+
+gpg> key 2
+
+sec  rsa4096/0xFF3E7D88647EBCDB
+    created: 2017-10-09  expires: never       usage: C
+    trust: ultimate      validity: ultimate
+ssb  rsa4096/0xBECFA3C1AE191D15
+    created: 2017-10-09  expires: 2018-10-09  usage: S
+ssb* rsa4096/0x5912A795E90DD2CF
+    created: 2017-10-09  expires: 2018-10-09  usage: E
+ssb  rsa4096/0x3F29127E79649A3D
+    created: 2017-10-09  expires: 2018-10-09  usage: A
+[ultimate] (1). Dr Duh <doc@duh.to>
+
+gpg> keytocard
+Please select where to store the key:
+   (2) Encryption key
+Your selection? 2
+
+[...]
+```
+
+## Authentication
+
+Type `key 2` again to deselect and `key 3` to select the last key:
+
+```console
+gpg> key 2
+
+gpg> key 3
+
+sec  rsa4096/0xFF3E7D88647EBCDB
+    created: 2017-10-09  expires: never       usage: C
+    trust: ultimate      validity: ultimate
+ssb  rsa4096/0xBECFA3C1AE191D15
+    created: 2017-10-09  expires: 2018-10-09  usage: S
+ssb  rsa4096/0x5912A795E90DD2CF
+    created: 2017-10-09  expires: 2018-10-09  usage: E
+ssb* rsa4096/0x3F29127E79649A3D
+    created: 2017-10-09  expires: 2018-10-09  usage: A
+[ultimate] (1). Dr Duh <doc@duh.to>
+
+gpg> keytocard
+Please select where to store the key:
+   (3) Authentication key
+Your selection? 3
+```
+
+Save and quit:
+
+```console
+gpg> save
+```
+
+These changes aim to improve consistency and clarity in the document. Feel free to adjust further based on your preferences.
+
+# Verify Card
+
+Verify that the sub-keys have been successfully moved to YubiKey as indicated by `ssb>`:
+
+```console
+$ gpg -K
+/tmp.FLZC0xcM/pubring.kbx
+-------------------------------------------------------------------------
+sec   rsa4096/0xFF3E7D88647EBCDB 2017-10-09 [C]
+      Key fingerprint = 011C E16B D45B 27A5 5BA8  776D FF3E 7D88 647E BCDB
+uid                            Dr Duh <doc@duh.to>
+ssb>  rsa4096/0xBECFA3C1AE191D15 2017-10-09 [S] [expires: 2018-10-09]
+ssb>  rsa4096/0x5912A795E90DD2CF 2017-10-09 [E] [expires: 2018-10-09]
+ssb>  rsa4096/0x3F29127E79649A3D 2017-10-09 [A] [expires: 2018-10-09]
+```
+
+# Multiple YubiKeys
+
+To provision additional security keys, follow these steps:
+
+1. Move the existing GPG home directory:
+
+```console
+$ mv -vi $GNUPGHOME $GNUPGHOME.1
+renamed '/tmp.FLZC0xcM' -> '/tmp.FLZC0xcM.1'
+```
+
+2. Copy the master key backup to the GPG home directory:
+
+```console
+$ cp -avi /mnt/encrypted-storage/tmp.XXX $GNUPGHOME
+'/mnt/encrypted-storage/tmp.FLZC0xcM' -> '/tmp.FLZC0xcM'
+```
+
+3. Change to the GPG home directory:
+
+```console
+$ cd $GNUPGHOME
+```
+
+## Switching Between Two or More YubiKeys
+
+When adding a GPG key to a YubiKey using the *keytocard* command, note that GPG deletes the key from your keyring and adds a *stub* pointing to that exact YubiKey. The stub identifies the GPG KeyID and the YubiKey's serial number.
+
+However, when repeating the *keytocard* operation for a second YubiKey, the stub in your keyring is overwritten. The stub will now point ONLY to the LAST YubiKey written to.
+
+To force GPG to scan the card and re-create the stubs to point to another YubiKey, follow these steps:
+
+1. Insert the first YubiKey (with a different serial number) and run the following command:
+
+```console
+$ gpg-connect-agent "scd serialno" "learn --force" /bye
+```
+
+GPG will scan the first YubiKey for GPG keys and recreate the stubs to point to the GPG keyID and YubiKey serial number.
+
+2. To switch back to using the second YubiKey, repeat the process (insert the other YubiKey and re-run the command).
+  
+**Note**: Consider creating a script or shell alias for the command to make it more user-friendly.
+
+# Multiple Hosts
+
+Using your YubiKey on multiple hosts can be convenient for scenarios like:
+
+- Switching between a desktop and a laptop
+- Using YubiKey at both home and work computers
+- Utilizing your YubiKey in environments like [Tails](https://tails.boum.org)
+
+## Initial Setup on First Host
+
+Begin by exporting your public key and trust settings on the host where your YubiKey is already working:
+
+``` console
+$ gpg --armor --export $KEYID > gpg-public-key-$KEYID.asc
+$ gpg --export-ownertrust > gpg-owner-trust.txt
+```
+
+Transfer both files to the second host. Then, on the second host:
+
+1. Define your KEYID. For example:
+
+    ``` console
+    $ export KEYID=0xFF3E7D88647EBCDB
+    ```
+
+2. Import your public key:
+
+    ``` console
+    $ gpg --import gpg-public-key-$KEYID.asc
+    ```
+
+3. Import the trust settings:
+
+    ``` console
+    $ gpg --import-ownertrust < gpg-owner-trust.txt
+    ```
+
+4. Insert your YubiKey into a USB port.
+
+5. Import the private key stubs from the YubiKey:
+
+    ``` console
+    $ gpg --card-status
+    ```
+
+## Setting up a Second Host 
+
+If you need to set up a second host while traveling and can't access your primary host, import your public key from a key-server and set trust manually:
+
+1. Define your KEYID:
+
+    ``` console
+    $ export KEYID=0xFF3E7D88647EBCDB
+    ```
+
+2. Fetch the public key from a key-server:
+
+    ``` console
+    $ gpg --keyserver hkps://keyserver.ubuntu.com:443 --recv $KEYID
+    ```
+
+3. Set ultimate trust:
+
+    ``` console
+    $ gpg --edit-key $KEYID
+    gpg> trust
+    Your decision? 5
+    Do you really want to set this key to ultimate trust? (y/N) y
+    gpg> quit
+    ```
+
+4. Insert your YubiKey into a USB port.
+
+5. Import the private key stubs from the YubiKey:
+
+    ``` console
+    $ gpg --card-status
+    ```
+
+## Alternative Approach
+
+To add an URL to YubiKey
+
+1. Define your KEYID:
+
+    ``` console
+    $ KEYID=0xFF3E7D88647EBCDB
+    ```
+
+2. Construct the URL:
+
+    ``` console
+    $ [[ ! "$KEYID" =~ ^"0x" ]] && KEYID="0x${KEYID}"
+    $ URL="hkps://keyserver.ubuntu.com:443/pks/lookup?op=get&search=${KEYID}"
+    $ echo $URL
+    hkps://keyserver.ubuntu.com:443/pks/lookup?op=get&search=0xFF3E7D88647EBCDB
+    ```
+
+3. Insert your YubiKey into a USB port.
+
+4. Add the URL to your YubiKey (will prompt for your YubiKey's admin PIN):
+
+    ``` console
+    $ gpg --edit-card
+    gpg/card> admin
+    gpg/card> url
+    URL to retrieve public key: hkps://keyserver.ubuntu.com:443/pks/lookup?op=get&search=0xFF3E7D88647EBCDB
+    gpg/card> quit
+    ```
+
+Once the URL of your public key is present on your YubiKey, setting up a new host becomes:
+
+1. Insert your YubiKey into a USB port.
+
+2. Use the `fetch` sub-command to retrieve your public key using the URL stored on the card:
+
+    ``` console
+    $ gpg --edit-card
+
+    gpg/card> fetch
+    gpg: requesting key from 'hkps://keyserver.ubuntu.com:443/pks/lookup?op=get&search=0xFF3E7D88647EBCDB'
+    gpg: /home/pi/.gnupg/trustdb.gpg: trustdb created
+    gpg: key FF3E7D88647EBCDB: public key "Dr Duh <doc@duh.to>" imported
+    gpg: Total number processed: 1
+    gpg: imported: 1
+
+    gpg/card> quit
+    ```
+
+3. Define your KEYID (which appears in the output in the previous step):
+
+    ``` console
+    $ export KEYID=0xFF3E7D88647EBCDB
+    ```
+
+4. Set ultimate trust:
+
+    ``` console
+    $ gpg --edit-key $KEYID
+    gpg> trust
+    Your decision? 5
+    Do you really want to set this key to ultimate trust? (y/N) y
+    gpg> quit
+    ```
+  
+# Cleanup 
+
+## Preparation
+
+Before completing the setup, ensure you have performed the following steps:
+
+- Save encryption, signing, and authentication sub-keys to YubiKey (`gpg -K` should show `ssb>` for sub-keys).
+- Save YubiKey user and admin PINs (changed from default values).
+- Save the password to the GPG master key in a secure, long-term location.
+- Save a copy of the master key, sub-keys, and revocation certificate on an encrypted volume, stored offline.
+- Save the password to that LUKS-encrypted volume in a secure, long-term location (separate from the device itself).
+- Save a copy of the public key somewhere easily accessible later.
+
+Now reboot or [securely delete](http://srm.sourceforge.net/) `$GNUPGHOME` and remove the secret keys from the GPG keyring:
+
+```console
+$ gpg --delete-secret-key $KEYID
+$ sudo srm -r $GNUPGHOME || sudo rm -rf $GNUPGHOME
+$ unset GNUPGHOME
+```
+
+**Important:** Ensure all generated keys and revocation certificates are securely erased if an ephemeral environment was not used!
+
+# Key Management
+
+## Using Keys
+
+1. Download [drduh/config/gpg.conf](https://github.com/drduh/config/blob/master/gpg.conf):
+
+    ```console
+    $ cd ~/.gnupg ; wget https://raw.githubusercontent.com/drduh/config/master/gpg.conf
+    $ chmod 600 gpg.conf
+    ```
+
+2. Install required packages and mount the non-encrypted volume created earlier:
+
+    ```console
+    $ sudo apt update && sudo apt install -y gnupg2 gnupg-agent gnupg-curl scdaemon pcscd
+    $ sudo mount /dev/mmcblk0p2 /mnt
+    ```
+
+3. Import the public key file:
+
+    ```console
+    $ gpg --import /mnt/gpg-0x*.asc
+    ```
+
+    Or download the public key from a keyserver:
+
+    ```console
+    $ gpg --recv $KEYID
+    ```
+
+4. Edit the master key to assign ultimate trust:
+
+    ```console
+    $ export KEYID=0xFF3E7D88647EBCDB
+    $ gpg --edit-key $KEYID
+    gpg> trust
+    ```
+
+    Choose `5` for ultimate trust.
+
+5. Remove and re-insert YubiKey and verify the status:
+
+    ```console
+    $ gpg --card-status
+    ```
+
+    `sec#` indicates the master key is not available (as it should be stored encrypted offline).
+
+    **Note:** If you see `General key info..: [none]` in the output instead - go back and import the public key using the previous step.
+
+## Encrypting and Decrypting Messages
+
+- Encrypt a message to your own key:
+
+    ```console
+    $ echo "test message string" | gpg --encrypt --armor --recipient $KEYID -o encrypted.txt
+    ```
+
+- To encrypt to multiple recipients (or keys):
+
+    ```console
+    $ echo "test message string" | gpg --encrypt --armor --recipient $KEYID_0 --recipient $KEYID_1 --recipient $KEYID_2 -o encrypted.txt
+    ```
+
+- Decrypt the message:
+
+    ```console
+    $ gpg --decrypt --armor encrypted.txt
+    ```
+
+## Signing and Verifying
+
+- Sign a message:
+
+    ```console
+    $ echo "test message string" | gpg --armor --clearsign > signed.txt
+    ```
+
+- Verify the signature:
+
+    ```console
+    $ gpg --verify signed.txt
+    ```
+
+## Shell Functions
+
+Use these shell functions to make encrypting files easier:
+
+```console
+$ secret document.pdf
+$ reveal document.pdf.1580000000.enc
+```
+
+These functions encapsulate common encryption and decryption tasks for your convenience.
+
+
+
+
+
+
+
+
+
