@@ -57,6 +57,11 @@ Welcome to the `Yubikey-Guide-For-Linux`. This guide illustrates the usage of th
   - [Encrypting and Decrypting Messages](#encrypting-and-decrypting-messages)
   - [Signing and Verifying](#signing-and-verifying)
   - [Shell Functions](#shell-functions)
+- [Rotating Keys](#rotating-keys)
+  - [Setup Environment](#setup-environment)
+  - [Renewing Sub-Keys](#renewing-sub-keys)
+  - [Rotation](#rotation)
+
 
 ## Special Note 
 
@@ -669,7 +674,9 @@ public and secret key created and signed.
 
 pub   rsa4096
 
-/0xFF3E7D88647EBCDB 2017-10-09 [C]
+/0xFF3E7D88647EBC
+
+DB 2017-10-09 [C]
       Key fingerprint = 011C E16B D45B 27A5 5BA8  776D FF3E 7D88 647E BCDB
 uid                              Dr Duh <doc@duh.to>
 ```
@@ -897,7 +904,7 @@ sec  rsa4096/0xFF3E7D88647EBCDB
 ssb  rsa4096/0xBECFA3C1AE191D15
     created: 2017-10-09  expires: 2018-10-09       usage: S
 ssb  rsa4096/0x5912A795E90DD2CF
-    created: 2017-10-09  expires: 2018-10-09       usage: E
+    created: 2017-10-09  expires: 2019-10-09       usage: E
 ssb  rsa4096/0x3F29127E79649A3D
     created: 2017-10-09  expires: 2018-10-09       usage: A
 [ultimate] (1). Dr Duh <doc@duh.to>
@@ -908,19 +915,6 @@ Finish by saving the keys.
 ```console
 gpg> save
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ## Add Extra Identities
 
@@ -1775,10 +1769,136 @@ $ reveal document.pdf.1580000000.enc
 These functions encapsulate common encryption and decryption tasks for your convenience.
 
 
+Your document is well-organized, providing clear information on key rotation, setup environment steps, and the process of renewing or rotating sub-keys. The use of headings, subheadings, and code blocks enhances readability. Here's a minor suggestion to make the information even more accessible:
 
+# Rotating Keys
 
+PGP lacks forward secrecy; a compromised key can decrypt past messages. While YubiKey storage adds security, it's not foolproof. Occasional sub-key rotation is advised. Renewing is convenient but signals ongoing master key possession. Replacing is more secure, requiring public key updates and re-encryption. Both methods have pros and cons; the choice depends on personal philosophy and threat model. Ideally, sub-keys would be ephemeral, but practicality varies. Advanced users might opt for an offline device for frequent key rotations and provisioning ease.
 
+## Setup Environment
 
+To renew or rotate sub-keys, follow these steps in a secure environment:
 
+1. Connect Offline Storage Device
 
+   ```console
+   $ sudo dmesg | tail
+   $ sudo cryptsetup luksOpen /dev/mmcblk0p1 secret
+   $ sudo mount /dev/mapper/secret /mnt/encrypted-storage
+   ```
+
+2. Import Master Key and Configuration
+
+   ```console
+   $ export GNUPGHOME=$(mktemp -d -t gnupg_$(date +%Y%m%d%H%M)_XXX)
+   $ gpg --import /mnt/encrypted-storage/tmp.XXX/mastersub.key
+   $ cp -v /mnt/encrypted-storage/tmp.XXX/gpg.conf $GNUPGHOME
+   ```
+
+3. Edit Master Key
+   ```console
+   $ export KEYID=0xFF3E7D88647EBCDB
+   $ gpg --expert --edit-key $KEYID
+   ```
+
+## Renewing Sub-Keys
+
+Renewing sub-keys is simpler:
+
+1. Change Expiry Date
+
+   ```console
+   $ gpg --edit-key $KEYID
+   $ gpg> expire
+   ```
+
+2. Export Public Key
+
+   ```console
+   $ gpg --armor --export $KEYID > gpg-$KEYID-$(date +%F).asc
+   ```
+
+3. Transfer or Update
+
+   - Transfer to another computer:
+
+     ```console
+     $ gpg --import gpg-0x*.asc
+     ```
+
+   - Use a public key server:
+
+     ```console
+     $ gpg --send-key $KEYID
+     $ gpg --recv $KEYID
+     ```
+
+## Rotation
+
+Rotating keys is a bit more involved:
+
+1. Generate New Sub-Keys
+
+   - Follow original steps for each sub-key.
+   - Previous sub-keys may be kept or deleted from the identity.
+
+2. Export New Keys
+
+   ```console
+   $ gpg --armor --export-secret-keys $KEYID > $GNUPGHOME/mastersub.key
+   $ gpg --armor --export-secret-subkeys $KEYID > $GNUPGHOME/sub.key
+   ```
+
+3. Copy the **new** temporary working directory to Encrypted Offline Storage
+
+   ```console
+   $ sudo cp -avi $GNUPGHOME /mnt/encrypted-storage
+   ```
+
+4. Export Updated Public Key
+
+   ```console
+   $ sudo mkdir /mnt/public
+   $ sudo mount /dev/mmcblk0p2 /mnt/public
+   $ gpg --armor --export $KEYID | sudo tee /mnt/public/$KEYID-$(date +%F).asc
+   $ sudo umount /mnt/public
+   ```
+
+5. Unmount and Close Encrypted Volume
+
+   ```console
+   $ sudo umount /mnt/encrypted-storage
+   $ sudo cryptsetup luksClose /dev/mapper/secret
+   ```
+
+6. Transfer New Keys to YubiKey
+
+   - Follow original steps (4, 5, and 6).
+   - Reboot or securely erase the GPG temporary working directory.
+
+# Adding notations
+
+**Notations for User ID(s) and OpenPGP Identity Proofs with Keyoxide**
+
+Notations can enhance user ID(s) and work seamlessly with [Keyoxide](https://keyoxide.org) to establish [OpenPGP identity proofs](https://keyoxide.org/guides/openpgp-proofs).
+
+To initiate the notations, access to the master key is required. Follow the setup instructions outlined in the [section](#setup-environment) of this guide.
+
+It's important to note that connecting the Yubikey to the setup environment is unnecessary. Additionally, there's no need to generate new keys, transfer keys to the YubiKey, or update any SSH public keys linked to the GPG key.
+
+Once the environment setup is complete, you can proceed to follow any of the guides listed under "Adding proofs" on the Keyoxide ["Guides"](https://keyoxide.org/guides/) page. However, stop just before saving the notation using the `save` command.
+
+At this point the public key can be exported:
+
+```console
+$ gpg --export $KEYID > pubkey.asc
+```
+
+The public key can now be transferred to the computer where the GPG key is used and it is imported with:
+
+```console
+$ gpg --import pubkey.asc
+```
+
+N.B.: The `showpref` command can be issued to ensure that the notions were correctly added.
 
